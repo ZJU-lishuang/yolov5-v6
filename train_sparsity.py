@@ -195,6 +195,21 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
     nl = model.model[-1].nl  # number of detection layers (used for scaling hyp['obj'])
     imgsz = check_img_size(opt.imgsz, gs, floor=gs * 2)  # verify imgsz is gs-multiple
 
+    # init cfg model
+    cfg_model = Darknet(opt.model_cfg, (opt.img_size[0], opt.img_size[0])).to(device)
+    # cfg_model = Darknet('cfg/yolov5s_v3.cfg', (416, 416)).to(device)
+    copy_weight_v6(model, cfg_model)
+    # 剪枝操作  sr开启稀疏训练  prune 不同的剪枝策略
+    # 剪枝操作
+    if opt.prune == 1:
+        CBL_idx, _, prune_idx, shortcut_idx, _ = parse_module_defs2(cfg_model.module_defs)
+        if opt.sr:
+            print('shortcut sparse training')
+    elif opt.prune == 0:
+        CBL_idx, _, prune_idx = parse_module_defs(cfg_model.module_defs)
+        if opt.sr:
+            print('normal sparse training ')
+
     # DP mode
     if cuda and RANK == -1 and torch.cuda.device_count() > 1:
         logging.warning('DP not recommended, instead use torch.distributed.run for best DDP Multi-GPU results.\n'
@@ -251,6 +266,11 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
     model.class_weights = labels_to_class_weights(dataset.labels, nc).to(device) * nc  # attach class weights
     model.names = names
 
+    for idx in prune_idx:
+        bn_weights = gather_bn_weights(cfg_model.module_list, [idx])
+        if LOGGER.tb:
+            LOGGER.tb.add_histogram('before_train_perlayer_bn_weights/hist', bn_weights.numpy(), idx, bins='doane')
+
     # Start training
     t0 = time.time()
     nw = max(round(hyp['warmup_epochs'] * nb), 1000)  # number of warmup iterations, max(3 epochs, 1k iterations)
@@ -287,6 +307,7 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
         if RANK in [-1, 0]:
             pbar = tqdm(pbar, total=nb)  # progress bar
         optimizer.zero_grad()
+        sr_flag = get_sr_flag(epoch, opt.sr)
         for i, (imgs, targets, paths, _) in pbar:  # batch -------------------------------------------------------------
             ni = i + nb * epoch  # number integrated batches (since train start)
             imgs = imgs.to(device, non_blocking=True).float() / 255.0  # uint8 to float32, 0-255 to 0.0-1.0
@@ -321,6 +342,12 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
 
             # Backward
             scaler.scale(loss).backward()
+
+            idx2mask = None
+            # if opt.sr and opt.prune==1 and epoch > opt.epochs * 0.5:
+            #     idx2mask = get_mask2(model, prune_idx, 0.85)
+
+            BNOptimizer.updateBN(sr_flag, cfg_model.module_list, opt.s, prune_idx, epoch, idx2mask, opt)
 
             # Optimize
             if ni - last_opt_step >= accumulate:
@@ -360,6 +387,11 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
                                            plots=False,
                                            callbacks=callbacks,
                                            compute_loss=compute_loss)
+
+            # 剪枝后bn层权重
+            bn_weights = gather_bn_weights(cfg_model.module_list, prune_idx)
+            if LOGGER.tb:
+                LOGGER.tb.add_histogram('bn_weights/hist', bn_weights.numpy(), epoch, bins='doane')
 
             # Update best mAP
             fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
@@ -404,6 +436,11 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
         # end epoch ----------------------------------------------------------------------------------------------------
     # end training -----------------------------------------------------------------------------------------------------
     if RANK in [-1, 0]:
+        for idx in prune_idx:
+            bn_weights = gather_bn_weights(cfg_model.module_list, [idx])
+            if LOGGER.tb:
+                LOGGER.tb.add_histogram('after_train_perlayer_bn_weights/hist', bn_weights.numpy(), idx, bins='doane')
+
         LOGGER.info(f'\n{epoch - start_epoch + 1} epochs completed in {(time.time() - t0) / 3600:.3f} hours.')
         for f in last, best:
             if f.exists():
@@ -433,6 +470,12 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
 
 def parse_opt(known=False):
     parser = argparse.ArgumentParser()
+    parser.add_argument('--model-cfg', type=str, default='', help='model cfg')
+    parser.add_argument('--sparsity-regularization', '-sr', dest='sr', action='store_true',
+                        help='train with channel sparsity regularization')
+    parser.add_argument('--s', type=float, default=0.001, help='scale sparse rate')
+    parser.add_argument('--prune', type=int, default=1, help='0:nomal prune 1:other prune ')
+
     parser.add_argument('--weights', type=str, default=ROOT / 'yolov5s.pt', help='initial weights path')
     parser.add_argument('--cfg', type=str, default='', help='model.yaml path')
     parser.add_argument('--data', type=str, default=ROOT / 'data/coco128.yaml', help='dataset.yaml path')
