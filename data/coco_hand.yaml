@@ -1,0 +1,9 @@
+path: /home/ls/projects/yolov5-v4/data 
+train: train.txt  # 128 images
+val: valid.txt  # 128 images
+
+# number of classes
+nc: 1
+
+# class names
+names: [ 'hand' ]
