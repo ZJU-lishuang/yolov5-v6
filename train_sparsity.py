@@ -50,6 +50,12 @@ from utils.metrics import fitness
 from utils.loggers import Loggers
 from utils.callbacks import Callbacks
 
+#train sparsity
+from utils.modelscfg import Darknet
+from utils.model_transfer import copy_weight_v6
+from utils.prune_utils import parse_module_defs,parse_module_defs2,gather_bn_weights,get_sr_flag, \
+    BNOptimizer
+
 LOGGER = logging.getLogger(__name__)
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))  # https://pytorch.org/docs/stable/elastic/run.html
 RANK = int(os.getenv('RANK', -1))
