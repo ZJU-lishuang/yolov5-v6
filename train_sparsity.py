@@ -272,10 +272,11 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
     model.class_weights = labels_to_class_weights(dataset.labels, nc).to(device) * nc  # attach class weights
     model.names = names
 
-    for idx in prune_idx:
-        bn_weights = gather_bn_weights(cfg_model.module_list, [idx])
-        if LOGGER.tb:
-            LOGGER.tb.add_histogram('before_train_perlayer_bn_weights/hist', bn_weights.numpy(), idx, bins='doane')
+    if RANK in [-1, 0]:
+        for idx in prune_idx:
+            bn_weights = gather_bn_weights(cfg_model.module_list, [idx])
+            if loggers.tb:
+                loggers.tb.add_histogram('before_train_perlayer_bn_weights/hist', bn_weights.numpy(), idx, bins='doane')
 
     # Start training
     t0 = time.time()
@@ -396,8 +397,8 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
 
             # 剪枝后bn层权重
             bn_weights = gather_bn_weights(cfg_model.module_list, prune_idx)
-            if LOGGER.tb:
-                LOGGER.tb.add_histogram('bn_weights/hist', bn_weights.numpy(), epoch, bins='doane')
+            if loggers.tb:
+                loggers.tb.add_histogram('bn_weights/hist', bn_weights.numpy(), epoch, bins='doane')
 
             # Update best mAP
             fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
@@ -444,8 +445,8 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
     if RANK in [-1, 0]:
         for idx in prune_idx:
             bn_weights = gather_bn_weights(cfg_model.module_list, [idx])
-            if LOGGER.tb:
-                LOGGER.tb.add_histogram('after_train_perlayer_bn_weights/hist', bn_weights.numpy(), idx, bins='doane')
+            if loggers.tb:
+                loggers.tb.add_histogram('after_train_perlayer_bn_weights/hist', bn_weights.numpy(), idx, bins='doane')
 
         LOGGER.info(f'\n{epoch - start_epoch + 1} epochs completed in {(time.time() - t0) / 3600:.3f} hours.')
         for f in last, best:
