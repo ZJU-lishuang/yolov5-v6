@@ -202,7 +202,7 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
     imgsz = check_img_size(opt.imgsz, gs, floor=gs * 2)  # verify imgsz is gs-multiple
 
     # init cfg model
-    cfg_model = Darknet(opt.model_cfg, (opt.img_size[0], opt.img_size[0])).to(device)
+    cfg_model = Darknet(opt.model_cfg, (opt.imgsz, opt.imgsz)).to(device)
     # cfg_model = Darknet('cfg/yolov5s_v3.cfg', (416, 416)).to(device)
     copy_weight_v6(model, cfg_model)
     # 剪枝操作  sr开启稀疏训练  prune 不同的剪枝策略
@@ -476,7 +476,7 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
 
 def parse_opt(known=False):
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model-cfg', type=str, default='', help='model cfg')
+    parser.add_argument('--model-cfg', type=str, default='cfg/yolov5s_v6.cfg', help='model cfg')
     parser.add_argument('--sparsity-regularization', '-sr', dest='sr', action='store_true',
                         help='train with channel sparsity regularization')
     parser.add_argument('--s', type=float, default=0.001, help='scale sparse rate')
