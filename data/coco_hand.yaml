@@ -1,4 +1,4 @@
-path: /home/ls/projects/yolov5-v4/data 
+path: hand_data
 train: train.txt  # 128 images
 val: valid.txt  # 128 images
 
