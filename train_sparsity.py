@@ -354,7 +354,7 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
             # if opt.sr and opt.prune==1 and epoch > opt.epochs * 0.5:
             #     idx2mask = get_mask2(model, prune_idx, 0.85)
 
-            BNOptimizer.updateBN_scaler(sr_flag, cfg_model.module_list, opt.s, prune_idx, epoch, scaler, idx2mask, opt)
+            BNOptimizer.updateBN_scaler(sr_flag, cfg_model.module_list, opt.scale, prune_idx, epoch, scaler, idx2mask, opt)
             # Optimize
             if ni - last_opt_step >= accumulate:
                 scaler.step(optimizer)  # optimizer.step
@@ -479,7 +479,7 @@ def parse_opt(known=False):
     parser.add_argument('--model-cfg', type=str, default='cfg/yolov5s_v6.cfg', help='model cfg')
     parser.add_argument('--sparsity-regularization', '-sr', dest='sr', action='store_true',
                         help='train with channel sparsity regularization')
-    parser.add_argument('--s', type=float, default=0.001, help='scale sparse rate')
+    parser.add_argument('--scale', type=float, default=0.001, help='scale sparse rate')
     parser.add_argument('--prune', type=int, default=1, help='0:nomal prune 1:other prune ')
 
     parser.add_argument('--weights', type=str, default=ROOT / 'yolov5s.pt', help='initial weights path')
