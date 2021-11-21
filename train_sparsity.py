@@ -354,8 +354,7 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
             # if opt.sr and opt.prune==1 and epoch > opt.epochs * 0.5:
             #     idx2mask = get_mask2(model, prune_idx, 0.85)
 
-            BNOptimizer.updateBN(sr_flag, cfg_model.module_list, opt.s, prune_idx, epoch, idx2mask, opt)
-
+            BNOptimizer.updateBN_scaler(sr_flag, cfg_model.module_list, opt.s, prune_idx, epoch, scaler, idx2mask, opt)
             # Optimize
             if ni - last_opt_step >= accumulate:
                 scaler.step(optimizer)  # optimizer.step
