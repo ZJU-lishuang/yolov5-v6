@@ -117,7 +117,7 @@ class ComputeLoss_cfg:
         # for k in 'na', 'nc', 'nl', 'anchors':
         #     setattr(self, k, getattr(det, k))
         self.nl = len(yolo_layers)
-        self.na = len(model.module_list[yolo_layers[0]].anchors)
+        self.na = len(module_list[yolo_layers[0]].anchors)
         anchors=torch.cat([module_list[yolo_index].anchors for yolo_index in yolo_layers],1)
         self.anchors=(anchors.view(self.nl,-1,2)/torch.tensor(stride).view(-1, 1, 1)).to(device)
         self.nc = model.nc
