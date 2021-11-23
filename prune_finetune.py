@@ -52,6 +52,7 @@ from utils.callbacks import Callbacks
 
 from utils.modelscfg import Darknet
 from utils.torch_utils import initialize_weights
+from utils.distill_utils import distillation_loss1, distillation_loss2
 
 LOGGER = logging.getLogger(__name__)
 LOCAL_RANK = int(os.getenv('LOCAL_RANK', -1))  # https://pytorch.org/docs/stable/elastic/run.html
@@ -128,6 +129,24 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
     # cfg Model
     model = Darknet(opt.cfg, (opt.imgsz, opt.imgsz)).to(device)
     initialize_weights(model)
+
+    distill = opt.distill
+    if distill:
+        t_cfg = opt.t_cfg
+        t_weights = opt.t_weight
+        t_data = data
+        ckpt = torch.load(t_weights, map_location=device)  # load checkpoint
+        with open(t_data) as f:
+            data_dict = yaml.load(f, Loader=yaml.FullLoader)  # data dict
+        nc = int(data_dict['nc'])
+        t_model = Model(t_cfg, nc=nc).to(device)
+        exclude = ['anchor']  # exclude keys
+        state_dict = ckpt['model'].float().state_dict()  # to FP32
+        state_dict = intersect_dicts(state_dict, t_model.state_dict(), exclude=exclude)  # intersect
+        t_model.load_state_dict(state_dict, strict=False)  # load
+        t_model.eval()
+        print('<.....................using knowledge distillation.......................>')
+        print('teacher model:', t_weights, '\n')
 
     # Freeze
     freeze = [f'model.{x}.' for x in range(freeze)]  # layers to freeze
@@ -292,10 +311,11 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
         # dataset.mosaic_border = [b - imgsz, -b]  # height, width borders
 
         mloss = torch.zeros(3, device=device)  # mean losses
+        msoft_target = torch.zeros(1).to(device)
         if RANK != -1:
             train_loader.sampler.set_epoch(epoch)
         pbar = enumerate(train_loader)
-        LOGGER.info(('\n' + '%10s' * 7) % ('Epoch', 'gpu_mem', 'box', 'obj', 'cls', 'labels', 'img_size'))
+        LOGGER.info(('\n' + '%10s' * 9) % ('Epoch', 'gpu_mem', 'box', 'obj', 'cls', 'soft', 'rratio','labels', 'img_size'))
         if RANK in [-1, 0]:
             pbar = tqdm(pbar, total=nb)  # progress bar
         optimizer.zero_grad()
@@ -331,6 +351,20 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
                 if opt.quad:
                     loss *= 4.
 
+            soft_target = 0
+            reg_ratio = 0  # 表示有多少target的回归是不如老师的，这时学生会跟gt再学习
+            if distill:
+
+                # _,output_t = t_model(imgs)
+                with torch.no_grad():
+                    _, output_t = t_model(imgs)
+
+                # soft_target = distillation_loss1(pred, output_t, model.nc, imgs.size(0))
+                # 这里把蒸馏策略改为了二，想换回一的可以注释掉loss2，把loss1取消注释
+                soft_target, reg_ratio = distillation_loss2(model, targets.to(device), pred, output_t)
+
+                loss += soft_target
+
             # Backward
             scaler.scale(loss).backward()
 
@@ -346,9 +380,10 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
             # Log
             if RANK in [-1, 0]:
                 mloss = (mloss * i + loss_items) / (i + 1)  # update mean losses
+                msoft_target = (msoft_target * i + soft_target) / (i + 1)
                 mem = f'{torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0:.3g}G'  # (GB)
-                pbar.set_description(('%10s' * 2 + '%10.4g' * 5) % (
-                    f'{epoch}/{epochs - 1}', mem, *mloss, targets.shape[0], imgs.shape[-1]))
+                pbar.set_description(('%10s' * 2 + '%10.4g' * 7) % (
+                    f'{epoch}/{epochs - 1}', mem, *mloss, msoft_target, reg_ratio,targets.shape[0], imgs.shape[-1]))
                 callbacks.run('on_train_batch_end', ni, model, imgs, targets, paths, plots, opt.sync_bn)
             # end batch ------------------------------------------------------------------------------------------------
 
@@ -477,6 +512,11 @@ def parse_opt(known=False):
     parser.add_argument('--freeze', type=int, default=0, help='Number of layers to freeze. backbone=10, all=24')
     parser.add_argument('--save-period', type=int, default=-1, help='Save checkpoint every x epochs (disabled if < 1)')
     parser.add_argument('--local_rank', type=int, default=-1, help='DDP parameter, do not modify')
+
+    parser.add_argument('--distill', action='store_true',
+                        help='knowledge distillation for finetune')
+    parser.add_argument('--t_cfg',type=str,default='models/yolov5s.yaml',help='teacher model yaml')
+    parser.add_argument('--t_weight', type=str, default='weights/last.pt', help='teacher model yaml')
 
     # Weights & Biases arguments
     parser.add_argument('--entity', default=None, help='W&B: Entity')
