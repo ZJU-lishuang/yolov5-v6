@@ -13,9 +13,19 @@ def copy_conv(conv_src,conv_dst):
     conv_dst[1] = conv_src.bn
     conv_dst[2] = conv_src.act
 
+def copy_conv_reverse(conv_src,conv_dst):
+    conv_src.conv = conv_dst[0]
+    conv_src.bn = conv_dst[1]
+    conv_src.act = conv_dst[2]
+
 def copy_conv_idx(conv_src,conv_dst,idx):
     copy_conv(conv_src,conv_dst)
     return idx+1
+
+def copy_conv_idx_reverse(conv_src,conv_dst,idx):
+    copy_conv_reverse(conv_src,conv_dst)
+    return idx+1
+
 
 def copy_c3(c3_src,module_lists,idx,num,shortcut=True):
     # C3-cv2
@@ -38,6 +48,29 @@ def copy_c3(c3_src,module_lists,idx,num,shortcut=True):
     #C3--cv3
     idx=copy_conv_idx(c3_src.cv3, module_lists[idx],idx)
     return idx
+
+def copy_c3_reverse(c3_src,module_lists,idx,num,shortcut=True):
+    # C3-cv2
+    idx=copy_conv_idx_reverse(c3_src.cv2, module_lists[idx],idx)
+    # route
+    idx = idx + 1
+    # C3-cv1
+    idx=copy_conv_idx_reverse(c3_src.cv1, module_lists[idx],idx)
+    # C3-m
+    for i in range(num):
+        # Bottleneck-cv1
+        idx=copy_conv_idx_reverse(c3_src.m[i].cv1, module_lists[idx],idx)
+        # Bottleneck-cv2
+        idx=copy_conv_idx_reverse(c3_src.m[i].cv2, module_lists[idx],idx)
+        if shortcut:
+            #m-add
+            idx = idx + 1
+    #C3-cat
+    idx = idx + 1
+    #C3--cv3
+    idx=copy_conv_idx_reverse(c3_src.cv3, module_lists[idx],idx)
+    return idx
+
 
 def copy_weight_v6(modelyolov5,model):
     idx=0
@@ -124,6 +157,92 @@ def copy_weight_v6(modelyolov5,model):
     model.module_list[conv_detect2_idx][0] = detect24.m[1]
     model.module_list[conv_detect3_idx][0] = detect24.m[2]
 
+def copy_weight_v6_reverse(modelyolov5,model):
+    idx=0
+    depth_multiple=1
+    if 'depth_multiple' in modelyolov5.yaml:
+        depth_multiple=modelyolov5.yaml['depth_multiple']
+    conv0 = list(modelyolov5.model.children())[0]
+    idx=copy_conv_idx_reverse(conv0, model.module_list[idx],idx)
+    conv1 = list(modelyolov5.model.children())[1]
+    idx=copy_conv_idx_reverse(conv1, model.module_list[idx],idx)
+    cspnet2 = list(modelyolov5.model.children())[2]
+    idx=copy_c3_reverse(cspnet2,model.module_list,idx, round(3 * depth_multiple))
+    conv3 = list(modelyolov5.model.children())[3]
+    idx=copy_conv_idx_reverse(conv3, model.module_list[idx],idx)
+    cspnet4 = list(modelyolov5.model.children())[4]
+    idx = copy_c3_reverse(cspnet4, model.module_list,idx, round(6 * depth_multiple))
+    conv5 = list(modelyolov5.model.children())[5]
+    idx=copy_conv_idx_reverse(conv5, model.module_list[idx],idx)
+    cspnet6 = list(modelyolov5.model.children())[6]
+    idx = copy_c3_reverse(cspnet6, model.module_list,idx, round(9 * depth_multiple))
+    conv7 = list(modelyolov5.model.children())[7]
+    idx=copy_conv_idx_reverse(conv7, model.module_list[idx],idx)
+    cspnet8 = list(modelyolov5.model.children())[8]
+    idx = copy_c3_reverse(cspnet8, model.module_list,idx, round(3 * depth_multiple))
+    sppf9 = list(modelyolov5.model.children())[9]
+    idx=copy_conv_idx_reverse(sppf9.cv1, model.module_list[idx],idx)
+    sppf9.m=model.module_list[idx]
+    idx = idx + 1
+    sppf9.m=model.module_list[idx]
+    idx = idx + 1
+    sppf9.m=model.module_list[idx]
+    idx = idx + 1
+    #route
+    idx = idx + 1
+    idx=copy_conv_idx_reverse(sppf9.cv2, model.module_list[idx],idx)
+    conv10 = list(modelyolov5.model.children())[10]
+    idx=copy_conv_idx_reverse(conv10, model.module_list[idx],idx)
+    upsample11 = list(modelyolov5.model.children())[11]
+    model.module_list[idx] = upsample11
+    idx = idx + 1
+    #route
+    idx=idx+1
+    cspnet13 = list(modelyolov5.model.children())[13]
+    idx = copy_c3_reverse(cspnet13, model.module_list, idx,round(3 * depth_multiple),False)
+    conv14 = list(modelyolov5.model.children())[14]
+    idx=copy_conv_idx_reverse(conv14, model.module_list[idx],idx)
+    upsample15 = list(modelyolov5.model.children())[15]
+    model.module_list[idx] = upsample15
+    idx = idx + 1
+    # route
+    idx = idx + 1
+    cspnet17 = list(modelyolov5.model.children())[17]
+    idx = copy_c3_reverse(cspnet17, model.module_list, idx,round(3 * depth_multiple), False)
+    #conv
+    conv_detect1_idx=idx
+    idx=idx+1
+    #yolo
+    idx=idx+1
+    #route
+    idx=idx+1
+    conv18 = list(modelyolov5.model.children())[18]
+    idx=copy_conv_idx_reverse(conv18, model.module_list[idx],idx)
+    # route
+    idx = idx + 1
+    cspnet20 = list(modelyolov5.model.children())[20]
+    idx = copy_c3_reverse(cspnet20, model.module_list,idx, round(3 * depth_multiple), False)
+    # conv
+    conv_detect2_idx = idx
+    idx = idx + 1
+    # yolo
+    idx = idx + 1
+    # route
+    idx = idx + 1
+    conv21 = list(modelyolov5.model.children())[21]
+    idx=copy_conv_idx_reverse(conv21, model.module_list[idx],idx)
+    # route
+    idx = idx + 1
+    cspnet23 = list(modelyolov5.model.children())[23]
+    idx = copy_c3_reverse(cspnet23, model.module_list, idx,round(3 * depth_multiple), False)
+    # conv
+    conv_detect3_idx = idx
+    detect24 = list(modelyolov5.model.children())[24]
+    detect24.m[0]=model.module_list[conv_detect1_idx][0]
+    detect24.m[1]=model.module_list[conv_detect2_idx][0]
+    detect24.m[2]=model.module_list[conv_detect3_idx][0]
+
+
 def plot_one_box(x, img, color=None, label=None, line_thickness=None):
     # Plots one bounding box on image img
     tl = line_thickness or round(0.002 * (img.shape[0] + img.shape[1]) / 2) + 1  # line/font thickness
@@ -202,3 +321,67 @@ if __name__ == '__main__':
     img_det(model,img, img0, save_path)
     yolov5save_path = "../v5.jpg"
     img_det(modelyolov5, img,img0, yolov5save_path)
+
+# if __name__ == '__main__':
+#     parser = argparse.ArgumentParser()
+#     parser.add_argument('--cfg', type=str, default='../cfg/prune_0.6_keep_0.01_8x_yolov5s_v6_hand.cfg', help='cfg file path')
+#     parser.add_argument('--path', type=str, default='../data/images/bus.jpg', help='img file path')
+#     parser.add_argument('--hyp', type=str, default='../data/hyps/hyp.scratch.yaml', help='hyperparameters path')
+#     parser.add_argument('--yaml_cfg', type=str, default='../models/yolov5s.yaml', help='model.yaml path')
+#     parser.add_argument('--weights', type=str, default='../weights/prune_0.6_keep_0.01_8x_last_v6s.pt', help='sparse model weights')
+#     parser.add_argument('--img_size', type=int, default=416, help='inference size (pixels)')
+#     opt = parser.parse_args()
+#     print(opt)
+#
+#     img_size = opt.img_size
+#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#
+#     # loading yolov5s
+#     # modelyolov5 = torch.load(opt.weights, map_location=device)['model'].float().eval()
+#     #
+#     # from models.yolo import Detect
+#     # inplace = True
+#     # for m in modelyolov5.modules():
+#     #     if type(m) is Detect:
+#     #         m.inplace = inplace
+#     #         if not isinstance(m.anchor_grid, list):  # new Detect Layer compatibility
+#     #             delattr(m, 'anchor_grid')
+#     #             setattr(m, 'anchor_grid', [torch.zeros(1)] * m.nl)
+#
+#     # load yolov5s from cfg
+#     model = Darknet(opt.cfg, (img_size, img_size)).to(device)
+#
+#     from utils.torch_utils import initialize_weights
+#     initialize_weights(model)
+#     if opt.weights.endswith('.pt'):
+#         model.load_state_dict(torch.load(opt.weights)['model'])
+#
+#     from models.yolo import Model
+#     import yaml
+#     yaml_cfg=opt.yaml_cfg
+#     hyp=opt.hyp
+#     if isinstance(hyp, str):
+#         with open(hyp, errors='ignore') as f:
+#             hyp = yaml.safe_load(f)  # load hyps dict
+#     modelyolov5 = Model(yaml_cfg, ch=3, nc=1, anchors=hyp.get('anchors')).to(device)  # create
+#
+#     copy_weight_v6_reverse(modelyolov5, model)
+#
+#     path = opt.path
+#     img0 = cv2.imread(path)  # BGR
+#     # Padded resize
+#     img = letterbox(img0, new_shape=416)[0]
+#
+#     # Convert
+#     img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
+#     img = np.ascontiguousarray(img)
+#     img = torch.from_numpy(img).to(device)
+#     img = img.float()
+#     img /= 255.0  # 0 - 255 to 0.0 - 1.0
+#     if img.ndimension() == 3:
+#         img = img.unsqueeze(0)
+#
+#     save_path="../v5_cfg.jpg"
+#     img_det(model,img, img0, save_path)
+#     yolov5save_path = "../v5.jpg"
+#     img_det(modelyolov5, img,img0, yolov5save_path)
