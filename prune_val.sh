@@ -1,0 +1,1 @@
+python prune_val.py --weights weights/best.pt --data data/coco_hand.yaml --img 640 --conf 0.001

@@ -1,0 +1,1 @@
+python prune_detect.py --weights weights/best.pt --source hand_data/images/test
