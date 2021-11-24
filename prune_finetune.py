@@ -41,7 +41,7 @@ from utils.general import labels_to_class_weights, increment_path, labels_to_ima
     strip_optimizer, get_latest_run, check_dataset, check_git_status, check_img_size, check_requirements, \
     check_file, check_yaml, check_suffix, print_args, print_mutation, set_logging, one_cycle, colorstr, methods
 from utils.downloads import attempt_download
-from utils.loss import ComputeLoss_cfg
+from utils.loss import ComputeLoss
 from utils.plots import plot_labels, plot_evolve
 from utils.torch_utils import EarlyStopping, ModelEMA, de_parallel, intersect_dicts, select_device, \
     torch_distributed_zero_first
@@ -52,6 +52,7 @@ from utils.callbacks import Callbacks
 
 from utils.modelscfg import Darknet
 from utils.torch_utils import initialize_weights
+from utils.model_transfer import copy_weight_v6_reverse
 from utils.distill_utils import distillation_loss1, distillation_loss2
 
 LOGGER = logging.getLogger(__name__)
@@ -127,8 +128,15 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
     # else:
     #     model = Model(cfg, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
     # cfg Model
-    model = Darknet(opt.cfg, (opt.imgsz, opt.imgsz)).to(device)
-    initialize_weights(model)
+    cfg_model = Darknet(opt.cfg, (opt.imgsz, opt.imgsz)).to(device)
+    initialize_weights(cfg_model)
+    if weights.endswith('.pt'):
+        cfg_model.load_state_dict(torch.load(weights)['model'])
+
+    yaml_cfg=opt.yaml_cfg
+    model = Model(yaml_cfg, ch=3, nc=1, anchors=hyp.get('anchors')).to(device)  # create
+
+    copy_weight_v6_reverse(model, cfg_model)
 
     distill = opt.distill
     if distill:
@@ -214,8 +222,7 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
     #         epochs += ckpt['epoch']  # finetune additional epochs
     #
     #     del ckpt, csd
-    if weights.endswith('.pt'):
-        model.load_state_dict(torch.load(opt.weights)['model'])
+
 
     # Image sizes
     # gs = max(int(model.stride.max()), 32)  # grid size (max stride)
@@ -292,7 +299,7 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
     scheduler.last_epoch = start_epoch - 1  # do not move
     scaler = amp.GradScaler(enabled=cuda)
     stopper = EarlyStopping(patience=opt.patience)
-    compute_loss = ComputeLoss_cfg(model)  # init loss class
+    compute_loss = ComputeLoss(model)  # init loss class
     LOGGER.info(f'Image sizes {imgsz} train, {imgsz} val\n'
                 f'Using {train_loader.num_workers} dataloader workers\n'
                 f"Logging results to {colorstr('bold', save_dir)}\n"
@@ -481,7 +488,8 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
 def parse_opt(known=False):
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', type=str, default=ROOT / 'yolov5s.pt', help='initial weights path')
-    parser.add_argument('--cfg', type=str, default='', help='model.yaml path')
+    parser.add_argument('--cfg', type=str, default='', help='model.cfg path')
+    parser.add_argument('--yaml-cfg', type=str, default='models/yolov5s.yaml', help='model.yaml path')
     parser.add_argument('--data', type=str, default=ROOT / 'data/coco128.yaml', help='dataset.yaml path')
     parser.add_argument('--hyp', type=str, default=ROOT / 'data/hyps/hyp.scratch.yaml', help='hyperparameters path')
     parser.add_argument('--epochs', type=int, default=300)
