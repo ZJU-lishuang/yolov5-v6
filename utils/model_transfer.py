@@ -277,9 +277,9 @@ def img_det(model,img,img0,save_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--cfg', type=str, default='../cfg/yolov5n_v6.cfg', help='cfg file path')
+    parser.add_argument('--cfg', type=str, default='../cfg/yolov5m_v6.cfg', help='cfg file path')
     parser.add_argument('--path', type=str, default='../data/images/bus.jpg', help='img file path')
-    parser.add_argument('--weights', type=str, default='../weights/yolov5n.pt', help='sparse model weights')
+    parser.add_argument('--weights', type=str, default='../weights/yolov5m.pt', help='sparse model weights')
     parser.add_argument('--img_size', type=int, default=416, help='inference size (pixels)')
     opt = parser.parse_args()
     print(opt)
