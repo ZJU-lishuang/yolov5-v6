@@ -82,7 +82,7 @@ def distillation_loss1(output_s, output_t, num_classes, batch_size):
 
 
 
-def distillation_loss2(model, targets, output_s, output_t):
+def distillation_loss2(model, compute_loss,targets, output_s, output_t):
     reg_m = 0.0
     T = 3.0
     Lambda_cls, Lambda_box = 0.0001, 0.001
@@ -91,7 +91,7 @@ def distillation_loss2(model, targets, output_s, output_t):
     ft = torch.cuda.FloatTensor if output_s[0].is_cuda else torch.Tensor
     lcls, lbox = ft([0]), ft([0])
 
-    tcls, tbox, indices, anchor_vec = build_targets_cfg(model,targets)
+    tcls, tbox, indices, anchor_vec = compute_loss.build_targets(output_s,targets)
     reg_ratio, reg_num, reg_nb = 0, 0, 0
     for i, (ps, pt) in enumerate(zip(output_s, output_t)):  # layer index, layer predictions
         b, a, gj, gi = indices[i]  # image, anchor, gridy, gridx

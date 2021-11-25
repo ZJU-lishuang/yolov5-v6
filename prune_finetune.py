@@ -142,16 +142,14 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
     if distill:
         t_cfg = opt.t_cfg
         t_weights = opt.t_weight
-        t_data = data
+
         ckpt = torch.load(t_weights, map_location=device)  # load checkpoint
-        with open(t_data) as f:
-            data_dict = yaml.load(f, Loader=yaml.FullLoader)  # data dict
-        nc = int(data_dict['nc'])
-        t_model = Model(t_cfg, nc=nc).to(device)
-        exclude = ['anchor']  # exclude keys
-        state_dict = ckpt['model'].float().state_dict()  # to FP32
-        state_dict = intersect_dicts(state_dict, t_model.state_dict(), exclude=exclude)  # intersect
-        t_model.load_state_dict(state_dict, strict=False)  # load
+        t_model = Model(t_cfg or ckpt['model'].yaml, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
+        exclude = ['anchor'] if (t_cfg or hyp.get('anchors')) and not resume else []  # exclude keys
+        csd = ckpt['model'].float().state_dict()  # checkpoint state_dict as FP32
+        csd = intersect_dicts(csd, t_model.state_dict(), exclude=exclude)  # intersect
+        t_model.load_state_dict(csd, strict=False)  # load
+        LOGGER.info(f'Transferred {len(csd)}/{len(t_model.state_dict())} items from {weights}')  # report
         t_model.eval()
         print('<.....................using knowledge distillation.......................>')
         print('teacher model:', t_weights, '\n')
@@ -368,7 +366,7 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
 
                 # soft_target = distillation_loss1(pred, output_t, model.nc, imgs.size(0))
                 # 这里把蒸馏策略改为了二，想换回一的可以注释掉loss2，把loss1取消注释
-                soft_target, reg_ratio = distillation_loss2(model, targets.to(device), pred, output_t)
+                soft_target, reg_ratio = distillation_loss2(model, compute_loss,targets.to(device), pred, output_t)
 
                 loss += soft_target
 
