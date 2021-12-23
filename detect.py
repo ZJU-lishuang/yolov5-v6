@@ -92,9 +92,10 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
             # check_requirements(('opencv-python>=4.5.4',))
             net = cv2.dnn.readNetFromONNX(w)
         else:
-            check_requirements(('onnx', 'onnxruntime'))
+            # check_requirements(('onnx', 'onnxruntime'))
             import onnxruntime
-            session = onnxruntime.InferenceSession(w, None)
+            session = onnxruntime.InferenceSession(w, None,providers=["CUDAExecutionProvider"])
+            print(onnxruntime.get_available_providers())
     else:  # TensorFlow models
         check_requirements(('tensorflow>=2.4.1',))
         import tensorflow as tf
