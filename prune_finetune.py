@@ -134,7 +134,7 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
         cfg_model.load_state_dict(torch.load(weights)['model'])
 
     yaml_cfg=opt.yaml_cfg
-    model = Model(yaml_cfg, ch=3, nc=1, anchors=hyp.get('anchors')).to(device)  # create
+    model = Model(yaml_cfg, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
 
     copy_weight_v6_reverse(model, cfg_model)
 
