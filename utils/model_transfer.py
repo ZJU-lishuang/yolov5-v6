@@ -510,20 +510,21 @@ if __name__ == '__main__':
 
     img_size = opt.img_size
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # n,s,m,l,x stride = 32
-    # n6,s6,m6,l6,x6 stride = 64
-    stride=64
-    import math
-    # Verify image size is a multiple of stride s in each dimension
-    img_size=max(math.ceil(img_size / int(stride)) * int(stride), 0)
 
     # loading yolov5s
     modelyolov5 = torch.load(opt.weights, map_location=device)['model'].float().eval()
 
     #4 anchors or 3 anchors
     modelx6=False
+    # n,s,m,l,x stride = 32
+    # n6,s6,m6,l6,x6 stride = 64
+    stride=32
     if len(modelyolov5.yaml["anchors"]) == 4:
         modelx6=True
+        stride = 64
+    import math
+    # Verify image size is a multiple of stride s in each dimension
+    img_size = max(math.ceil(img_size / int(stride)) * int(stride), 0)
 
     from models.yolo import Detect
     inplace = True
