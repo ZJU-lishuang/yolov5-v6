@@ -52,7 +52,7 @@ from utils.callbacks import Callbacks
 
 from utils.modelscfg import Darknet
 from utils.torch_utils import initialize_weights
-from utils.model_transfer import copy_weight_v6_reverse
+from utils.model_transfer import copy_weight_v6_reverse,copy_weight_v6x_reverse
 from utils.distill_utils import distillation_loss1, distillation_loss2
 
 LOGGER = logging.getLogger(__name__)
@@ -136,7 +136,10 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
     yaml_cfg=opt.yaml_cfg
     model = Model(yaml_cfg, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
 
-    copy_weight_v6_reverse(model, cfg_model)
+    if len(model.yaml["anchors"]) == 4:
+        copy_weight_v6x_reverse(model, cfg_model)
+    else:
+        copy_weight_v6_reverse(model, cfg_model)
 
     distill = opt.distill
     if distill:

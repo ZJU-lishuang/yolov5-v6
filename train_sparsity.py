@@ -52,7 +52,7 @@ from utils.callbacks import Callbacks
 
 #train sparsity
 from utils.modelscfg import Darknet
-from utils.model_transfer import copy_weight_v6
+from utils.model_transfer import copy_weight_v6,copy_weight_v6x
 from utils.prune_utils import parse_module_defs,parse_module_defs2,gather_bn_weights,get_sr_flag, \
     BNOptimizer
 
@@ -204,7 +204,10 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
     # init cfg model
     cfg_model = Darknet(opt.model_cfg, (opt.imgsz, opt.imgsz)).to(device)
     # cfg_model = Darknet('cfg/yolov5s_v3.cfg', (416, 416)).to(device)
-    copy_weight_v6(model, cfg_model)
+    if len(model.yaml["anchors"]) == 4:
+        copy_weight_v6x(model, cfg_model)
+    else:
+        copy_weight_v6(model, cfg_model)
     # 剪枝操作  sr开启稀疏训练  prune 不同的剪枝策略
     # 剪枝操作
     if opt.prune == 1:
