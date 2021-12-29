@@ -1,0 +1,1 @@
+python prune_finetune.py --img 640 --batch 8 --epoch 100 --data data/coco_hand.yaml --yaml-cfg models/yolov5s.yaml --cfg cfg/prune_0.6_keep_0.01_8x_yolov5s_v6_hand.cfg --weights weights/prune_0.6_keep_0.01_8x_last_v6s.pt --name s_finetune_8x
