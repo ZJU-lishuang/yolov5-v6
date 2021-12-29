@@ -226,8 +226,8 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
 
 
     # Image sizes
-    # gs = max(int(model.stride.max()), 32)  # grid size (max stride)
-    gs = int(max([8, 16, 32]))
+    gs = max(int(model.stride.max()), 32)  # grid size (max stride)
+    # gs = int(max([8, 16, 32]))
     # nl = model.model[-1].nl  # number of detection layers (used for scaling hyp['obj'])
     nl=3
     imgsz = check_img_size(opt.imgsz, gs, floor=gs * 2)  # verify imgsz is gs-multiple
