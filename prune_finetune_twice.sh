@@ -1,0 +1,2 @@
+# 使用微调后的模型作为初始训练模型，再次微调
+pyhton prune_finetune_twice.py --img 416 --batch 16 --epochs 50 --weights runs/train/s_finetune_8x/weights/last.pt --data data/coco_hand.yaml --cfg models/yolov5s.yaml --name s_hand
